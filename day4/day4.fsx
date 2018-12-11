@@ -81,8 +81,8 @@ let calculateNaptime days =
         d.Activity
         |> Seq.fold (fun (duration, lastTime) act -> 
             match act with
-            | (Wakes  t) -> (duration, t) 
-            | (Sleeps t) -> (duration + ((t - lastTime).TotalMinutes |> int), t) 
+            | (Sleeps  t) -> (duration, t) 
+            | (Wakes t) -> (duration + ((t - lastTime).TotalMinutes |> int) - 1, t) 
             | _ -> failwith "Invalid data"
         ) (0, d.Started) )
     |> Seq.sumBy fst
@@ -96,55 +96,45 @@ let napTimes =
     activityById
     |> Seq.map (fun r -> {Id = fst r; Duration = snd r |> calculateNaptime})
     |> Seq.sortByDescending (fun r -> r.Duration)
-    
-//napTimes.Dump("Nap Times")
 
-let plotNaps history =
-    let timecard = Array2D.create  (history |> Seq.length) 70 0
+let lazyElf = napTimes |> Seq.head
+printfn "Lazy Elf: ID: %d Duration: %d" lazyElf.Id lazyElf.Duration
     
-    history 
-    |> Seq.iteri (fun index a -> 
-        a.Activity
-        |> Seq.fold (fun (lastTime:DateTime) action -> 
-            match action with
-            | (Wakes t) -> 
-                let duration = (t - lastTime).TotalMinutes |> int
-                
-                let day = match lastTime.Hour with 11 -> lastTime.Day | _-> lastTime.AddDays(-1.0).Day
-                let started = DateTime(lastTime.Year, lastTime.Month, day, 23, 50,00)
-                    
-                let offset = (lastTime - started).TotalMinutes |> int
+let plotNaps history = 
+    history
+    |> Seq.map ( fun h -> 
+        h.Activity 
+        |> Seq.fold (fun (lastTime:DateTime,naps) action ->
+        match action with
+        | (Wakes t) -> lastTime, (lastTime,((t - lastTime).TotalMinutes |> int) - 1) :: naps
+        | (Sleeps t) -> t,naps
+        | _ -> failwith "Invalid case") (h.Started,[]) )
+    |> Seq.collect snd
+    |> Seq.collect (fun (start, duration) ->
+        [for i in 0 .. duration -> 
+            (start.AddMinutes(i|>float).ToString("hhmm"),1)])
+    |> Seq.groupBy fst
+    |> Seq.map ( fun (min, occurances) -> (min, occurances |> Seq.length))
 
-                for i = offset to offset + duration do
-                    timecard.[index,i] <- 1
-                t
-            | (Sleeps t) -> t
-            | _ -> failwith "Invalid case" ) a.Started |> ignore)
-    
-    
-    timecard
-    
-    
 let selectActivity id history = 
     history 
     |> Seq.filter (fun (id', _) -> id = id')
     |> Seq.map snd
     |> Seq.head
+
+let naps = selectActivity lazyElf.Id activityById |> plotNaps
+
+// naps.Dump()
+
+let sleepiestMinuteEncoded = 
+    naps
+    |> Seq.sortByDescending (fun (_,count)-> count)
+    |> Seq.head
+    |> fst
     
 
-let lazyElf = (napTimes |> Seq.head).Id
+let sleepiestMinute = sleepiestMinuteEncoded.Substring(2) |> int
 
-printfn "Lazy Elf: %d" lazyElf
+printfn "Sleepiest Minute: %d" sleepiestMinute
 
-let naps = selectActivity lazyElf activityById |> plotNaps
-
-//naps.Dump("Naps")
-
-let samples = Array2D.length1 naps - 1
-
-let byMinute = 
-    [0 .. (Array2D.length2 naps - 1)]
-    |> Seq.map (fun min -> min,(naps.[0 .. samples, min] |> Seq.sum))
-
-
-byMinute.Dump("byMinute")
+printfn "Checksum:  %d" (lazyElf.Id * sleepiestMinute)
