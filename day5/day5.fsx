@@ -34,15 +34,21 @@ let rec reduce polymerChain =
     | true -> polymerChain
     | false -> polymerChain |> Array.filter markedForDeletion |> reduce 
 
-
+let watch = Stopwatch.StartNew()
 let remainder =
     chars
     |> Seq.toArray
     |> reduce 
     |> Seq.choose id
     |> String.Concat
+watch.Stop()
     
-printfn "Remaining chain length: %d" (Seq.length remainder)
+printfn "Remaining chain length: %d determined in %A" (Seq.length remainder) watch.Elapsed
+        
+type ReducedPolymerChain = {
+    Unit: char;
+    Length: int;
+}
 
 let removeUnit unit polymerChain =
     for i in 0 .. Array.length polymerChain - 1 do
@@ -58,21 +64,25 @@ let computeReducedChain polymerChain unit =
     |> reduce
     |> Seq.choose id
     |> Seq.length
+    
+let asyncComputeReducedChain unit =
+    async { 
+        let watch = Stopwatch.StartNew()
+        let length = computeReducedChain chars unit
+        watch.Stop()
+        printfn "\tComputed reduced chain %A in %A" unit watch.Elapsed
+        return {Unit = unit; Length = length}
+    }
 
 //printfn "initial length %d" (Seq.length chars)
-        
-type ReducedPolymerChain = {
-    Unit: char;
-    Length: int;
-}
 
 let chains = 
     ['a' .. 'z']
-    |> Seq.map (fun u -> {Unit = u; Length = computeReducedChain chars u})
-    |> Seq.sortBy (fun r -> r.Length)
+    |> Seq.map asyncComputeReducedChain
+    |> Async.Parallel
+    |> Async.RunSynchronously
+    |> Seq.sortBy (fun r -> r.Length)    
     |> Seq.toArray
-    
-//chains.Dump()
 
 let shortest = chains |> Seq.head
 printfn "The shorted chain is from removing %A at a length of %d" shortest.Unit shortest.Length
