@@ -17,6 +17,12 @@ type SleepRecord = {
     Id: int;
     Duration: int;
 }
+
+type SleepFrequency = {
+    Id: int;
+    Minute: int;
+    Count: int;
+}
     
 let (|Match|_|) pattern input =
     let m = Regex.Match(input, pattern, RegexOptions.Compiled)
@@ -102,6 +108,7 @@ printfn "Lazy Elf: ID: %d Duration: %d" lazyElf.Id lazyElf.Duration
     
 let plotNaps history = 
     history
+//    |> Seq.filter (fun h-> Seq.length h.Activity > 0)
     |> Seq.map ( fun h -> 
         h.Activity 
         |> Seq.fold (fun (lastTime:DateTime,naps) action ->
@@ -126,15 +133,41 @@ let naps = selectActivity lazyElf.Id activityById |> plotNaps
 
 // naps.Dump()
 
-let sleepiestMinuteEncoded = 
+let decodeMinute (encoded:string) = encoded.Substring(2) |> int
+
+let sleepiestMinute = 
     naps
     |> Seq.sortByDescending (fun (_,count)-> count)
     |> Seq.head
     |> fst
-    
-
-let sleepiestMinute = sleepiestMinuteEncoded.Substring(2) |> int
+    |> decodeMinute
 
 printfn "Sleepiest Minute: %d" sleepiestMinute
 
 printfn "Checksum:  %d" (lazyElf.Id * sleepiestMinute)
+
+let determineMinute (id, activity) =
+    let sorted = 
+            activity 
+            |> plotNaps
+            |> Seq.sortByDescending (fun (_,count)-> count)
+            |> Seq.toList
+            
+    match sorted with
+    | [] -> None
+    | _ -> 
+        let (encoded, count) = sorted |> Seq.head
+        {Id = id; Minute = decodeMinute encoded; Count = count} |> Some
+
+
+let sleepiestMinuteByGuard = 
+    activityById
+    |> Seq.map determineMinute
+    |> Seq.choose id
+    |> Seq.sortByDescending (fun r -> r.Count)
+
+
+// sleepiestMinuteByGuard.Dump()
+let sleepiestGuard = sleepiestMinuteByGuard |> Seq.head
+
+printfn "Most frequently asleep Guard %d at minute %d for checksum %d" sleepiestGuard.Id sleepiestGuard.Minute (sleepiestGuard.Id * sleepiestGuard.Minute)
