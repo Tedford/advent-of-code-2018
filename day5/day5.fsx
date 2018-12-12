@@ -1,6 +1,7 @@
 open System
 open System.Collections.Generic
 open System.IO
+open System.Diagnostics
 
 let reacts c1 c2 = 
     match c1, c2 with
@@ -11,9 +12,8 @@ let reacts c1 c2 =
 let markedForDeletion = function None -> false | _ -> true
 
 let chars = 
-        File.ReadAllBytes(@"c:\projects\github\advent-of-code-2018\day5\input.dat")
-        |> Seq.map (fun b-> b |> char |> Some)
-        |> Seq.toArray
+    File.ReadAllBytes(@"c:\projects\github\advent-of-code-2018\day5\input.dat")
+    |> Seq.map (fun b-> b |> char |> Some)
 
 printfn "Initial chain length: %d" (Seq.length chars)
 
@@ -36,8 +36,43 @@ let rec reduce polymerChain =
 
 
 let remainder =
-    reduce chars
+    chars
+    |> Seq.toArray
+    |> reduce 
     |> Seq.choose id
     |> String.Concat
     
 printfn "Remaining chain length: %d" (Seq.length remainder)
+
+let removeUnit unit polymerChain =
+    for i in 0 .. Array.length polymerChain - 1 do
+        match polymerChain.[i] with
+        | Some x when x = Char.ToLower(unit) || x = Char.ToUpper(unit) -> polymerChain.[i] <- None
+        | _ -> ()
+    polymerChain
+        
+let computeReducedChain polymerChain unit =
+    polymerChain 
+    |> Seq.toArray
+    |> removeUnit unit
+    |> reduce
+    |> Seq.choose id
+    |> Seq.length
+
+//printfn "initial length %d" (Seq.length chars)
+        
+type ReducedPolymerChain = {
+    Unit: char;
+    Length: int;
+}
+
+let chains = 
+    ['a' .. 'z']
+    |> Seq.map (fun u -> {Unit = u; Length = computeReducedChain chars u})
+    |> Seq.sortBy (fun r -> r.Length)
+    |> Seq.toArray
+    
+//chains.Dump()
+
+let shortest = chains |> Seq.head
+printfn "The shorted chain is from removing %A at a length of %d" shortest.Unit shortest.Length
